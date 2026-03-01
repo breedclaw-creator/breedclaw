@@ -2,9 +2,55 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const cookieParser = require('cookie-parser');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
+// ========================================
+// PRIVATE ACCESS CONTROL
+// ========================================
+const ADMIN_PASSWORD = process.env.ADMIN_PASS || "breedclaw2026";
+
+app.use(cookieParser());
+
+app.use((req, res, next) => {
+  // Allow APIs through (already protected by API key)
+  if (req.path.startsWith('/api') || req.path === '/health') {
+    return next();
+  }
+  
+  // Check password cookie
+  const password = req.cookies?.admin_pass;
+  if (password !== ADMIN_PASSWORD) {
+    // Show login page
+    return res.send(`
+<!DOCTYPE html>
+<html>
+<head><title>BreedClaw Access</title>
+<style>body{font-family:monospace;background:black;color:lime;padding:100px;text-align:center;}
+input{padding:15px;font-size:18px;font-family:monospace;background:#111;color:lime;border:2px solid lime;}
+button{padding:15px 30px;font-size:18px;background:lime;color:black;border:none;cursor:pointer;font-family:monospace;}
+</style>
+</head>
+<body>
+<h1>🔒 BREEDCLAW ORCHESTRATOR</h1>
+<p>Enter Admin Password:</p>
+<input type="password" id="pass" placeholder="breedclaw2026">
+<button onclick="login()">ACCESS MISSION CONTROL</button>
+<script>
+function login() {
+  document.cookie = 'admin_pass=' + document.getElementById('pass').value;
+  location.reload();
+}
+</script>
+</body>
+</html>
+    `);
+  }
+  
+  next();
+});
+
 const PORT = process.env.PORT || 3001;
 
 // ========================================
