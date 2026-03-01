@@ -308,18 +308,27 @@ setInterval(() => {
 }, 5000);
 
 // ========================================
-// PRODUCTION ROUTING - Serve React Frontend
+// PRODUCTION ROUTING - Serve Frontend (FIXED)
 // ========================================
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
-  });
-}
+app.get('/api*', (req, res, next) => next()); // API routes first
+
+// Serve static files BEFORE catch-all
+app.use(express.static(path.join(__dirname, 'frontend/build'), { 
+  maxAge: '1y',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) res.set('Cache-Control', 'public, immutable');
+  }
+}));
+
+// Catch-all for React Router (AFTER static)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend/build/index.html'));
+});
 
 // ========================================
-// START SERVER
+// START SERVER (DELETE DUPLICATE PORT)
 // ========================================
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {  // ← USE EXISTING PORT FROM LINE 13
   console.log(`🚀 BREEDCLAW ORCHESTRATOR v1.0.5 LIVE on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔑 API Key Required: ${!!API_KEY}`);
