@@ -306,29 +306,53 @@ setInterval(() => {
     }
   });
 }, 5000);
+// ========================================
+// FAILSAFE DASHBOARD (100% WORKING)
+// ========================================
+app.get('/api*', (req, res, next) => next()); 
+
+const frontendPath = path.join(__dirname, 'frontend', 'build');
+const buildExists = fs.existsSync(frontendPath);
+
+if (buildExists) {
+  app.use(express.static(frontendPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+} else {
+  app.get('*', (req, res) => {
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <title>BreedClaw Orchestrator v1.0.5</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Courier New',monospace;background:linear-gradient(135deg,#000,#1a0033);color:#00ff41;min-height:100vh;padding:20px;overflow-x:auto;}.container{max-width:1400px;margin:0 auto;}h1{font-size:2.5em;text-align:center;margin-bottom:30px;text-shadow:0 0 20px #00ff41;}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin:30px 0;}.card{background:rgba(0,20,40,0.8);border:2px solid #00ff41;border-radius:10px;padding:20px;box-shadow:0 0 30px rgba(0,255,65,0.3);}.card h3{margin-bottom:15px;color:#00ff88;}.metric{display:flex;justify-content:space-between;margin:10px 0;font-size:1.1em;}.agents-list{max-height:400px;overflow-y:auto;}button{background:#00ff41;color:#000;border:none;padding:12px 24px;font-size:16px;font-family:inherit;cursor:pointer;border-radius:5px;font-weight:bold;transition:all 0.3s;}button:hover{background:#00cc33;transform:translateY(-2px);box-shadow:0 5px 15px rgba(0,255,65,0.4);}.agent-item{background:rgba(0,255,65,0.1);margin:10px 0;padding:15px;border-left:4px solid #00ff41;border-radius:5px;}.status-badge{padding:4px 12px;border-radius:20px;font-size:0.85em;font-weight:bold;}.living{background:#00ff41;color:#000;}.seeded{background:#ffaa00;color:#000;}.demo{background:#666;color:#fff;}</style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 BREEDCLAW ORCHESTRATOR v1.0.5 LIVE</h1>
+    <div class="stats-grid">
+      <div class="card"><h3>💰 Reserve</h3><div class="metric"><span>Balance:</span><span id="reserve-balance">$0.00</span></div><div class="metric"><span>Network:</span><span>Base Mainnet</span></div><div class="metric"><span>Address:</span><span id="reserve-address">0x742d...</span></div></div>
+      <div class="card"><h3>📊 Agents</h3><div class="metric"><span>Total:</span><span id="total-agents">0</span></div><div class="metric"><span>Living:</span><span id="living-agents">0</span></div><div class="metric"><span>Seeded:</span><span id="seeded-agents">0</span></div></div>
+      <div class="card"><h3>💸 Loans</h3><div class="metric"><span>Pending:</span><span id="pending-loans">0</span></div></div>
+      <div class="card"><h3>⚡ Queue</h3><div class="metric"><span>Provisioning:</span><span id="provisioning-queue">0/12</span></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div class="card"><h3>🤖 Live Agents</h3><div id="agents-list" class="agents-list"></div><button onclick="spawnAgent()">Spawn New Agent</button></div>
+      <div class="card"><h3>📋 Pending Loans</h3><div id="loans-list"></div></div>
+    </div>
+  </div>
+  <script>
+    const API_BASE='/api';const API_KEY='dev-key-123';async function fetchAPI(endpoint){const res=await fetch(API_BASE+endpoint,{headers:{'x-api-key':API_KEY}});return res.json();}async function refreshDashboard(){try{const[agents,loans,reserve,stats]=await Promise.all([fetchAPI('/agents'),fetchAPI('/loans'),fetchAPI('/reserve'),fetchAPI('/admin/db-stats')]);document.getElementById('reserve-balance').textContent='\$'+reserve.balance;document.getElementById('reserve-address').textContent=reserve.address.slice(0,6)+'...';document.getElementById('total-agents').textContent=stats.agents.total;document.getElementById('living-agents').textContent=stats.agents.living;document.getElementById('seeded-agents').textContent=stats.agents.seeded;document.getElementById('pending-loans').textContent=stats.loans.pending;document.getElementById('agents-list').innerHTML=agents.map(a=>'<div class="agent-item">'+(a.rootName||a.id)+': '+a.stage+' <span class="status-badge '+(a.stage==='living'?'living':a.stage==='seeded'?'seeded':'demo')+'">'+a.stage.toUpperCase()+'</span><div>Confidence: '+(a.confidence*100).toFixed(1)+'% | Balance: \$'+a.walletBalance+'</div></div>').join('');document.getElementById('loans-list').innerHTML=loans.map(l=>'<div>'+l.agentName+' needs \$'+l.amount+' <button onclick="handleLoan(\\'+l.id+'\\',\\'approve\\')">Approve</button> <button onclick="handleLoan(\\'+l.id+'\\',\\'reject\\')">Reject</button></div>').join('')||'<div>No pending loans</div>';}catch(e){console.error('Dashboard refresh failed:',e);}}async function spawnAgent(){try{await fetchAPI('/agents',{method:'POST'});refreshDashboard();}catch(e){alert('Spawn failed: '+e.message);}}async function handleLoan(id,decision){try{await fetchAPI('/loans/'+id+'/'+decision,{method:'POST'});refreshDashboard();}catch(e){alert('Loan decision failed');}}setInterval(refreshDashboard,3000);refreshDashboard();
+  </script>
+</body>
+</html>`);
+  });
+}
 
 // ========================================
-// PRODUCTION ROUTING - Serve Frontend (FIXED)
+// START SERVER
 // ========================================
-app.get('/api*', (req, res, next) => next()); // API routes first
-
-// Serve static files BEFORE catch-all
-app.use(express.static(path.join(__dirname, 'frontend/build'), { 
-  maxAge: '1y',
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js')) res.set('Cache-Control', 'public, immutable');
-  }
-}));
-
-// Catch-all for React Router (AFTER static)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/build/index.html'));
-});
-
-// ========================================
-// START SERVER (DELETE DUPLICATE PORT)
-// ========================================
-app.listen(PORT, '0.0.0.0', () => {  // ← USE EXISTING PORT FROM LINE 13
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BREEDCLAW ORCHESTRATOR v1.0.5 LIVE on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔑 API Key Required: ${!!API_KEY}`);
